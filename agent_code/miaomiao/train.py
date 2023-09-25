@@ -93,8 +93,7 @@ def setup_training(self):
 
     self.bomb_history = deque([], 5)
     self.coordinate_history = deque([], 20)
-    # While this timer is positive, agent will not hunt/attack opponents
-    self.ignore_others_timer = 0
+
     self.current_round = 0
 
     self.one_game = {
@@ -227,9 +226,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             else:
                 events.append(NOT_ESCAPE_FROM_BOMB)
         else:
+            events.append(ESCAPE_FROM_BOMB)
             if self_action == 'WAIT':
                 events.append(WAITED_OK)
-                events.append(ESCAPE_FROM_BOMB)
 
     elif old_features[len(old_features) - 2] == 1:
         if self_action != 'WAIT' and self_action in valid_actions and self_action != 'BOMB':
@@ -246,28 +245,28 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
         # Exclude targets that are currently occupied by a bomb
         old_targets = [old_targets[i] for i in range(len(old_targets)) if old_targets[i] not in old_bomb_xys]
         old_free_space = old_arena == 0
-        if self.ignore_others_timer > 0:
-            for o in old_others:
-                old_free_space[o] = False
+
+        for o in old_others:
+            old_free_space[o] = False
 
         d = find_closest_target(old_free_space, (old_x, old_y), old_targets, self.logger)
 
 
         if self_action == 'BOMB':
-            if STUCK_IN_LOOP not in events:
-                if d == (old_x, old_y) and ([old_arena[old_x + 1, old_y], old_arena[old_x - 1, old_y], old_arena[old_x, old_y + 1], old_arena[old_x, old_y - 1]].count(1) > 0):
-                    events.append(BOMB_CRATES)
+            # if STUCK_IN_LOOP not in events:
+            if d == (old_x, old_y) and ([old_arena[old_x + 1, old_y], old_arena[old_x - 1, old_y], old_arena[old_x, old_y + 1], old_arena[old_x, old_y - 1]].count(1) > 0):
+                events.append(BOMB_CRATES)
 
-                # if 'BOMB_DROPPED' not in events:
-                if (old_x, old_y) in old_dead_ends:
-                    events.append(BOMB_DEAD_END)
+            # if 'BOMB_DROPPED' not in events:
+            if (old_x, old_y) in old_dead_ends:
+                events.append(BOMB_DEAD_END)
 
-                if len(old_others) > 0:
-                    if (min(abs(xy[0] - old_x) + abs(xy[1] - old_y) for xy in old_others)) <= 1:
-                        events.append(BOMB_OPPONENT)
+            if len(old_others) > 0:
+                if (min(abs(xy[0] - old_x) + abs(xy[1] - old_y) for xy in old_others)) <= 1:
+                    events.append(BOMB_OPPONENT)
 
-                if BOMB_CRATES not in events and BOMB_OPPONENT not in events and BOMB_DEAD_END not in events:
-                    events.append(UNLESS_BOMB)
+            if BOMB_CRATES not in events and BOMB_OPPONENT not in events and BOMB_DEAD_END not in events and ESCAPE_FROM_BOMB not in events:
+                events.append(UNLESS_BOMB)
 
         else:
             if self_action == 'WAIT':
@@ -275,7 +274,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
                     # if STUCK_IN_LOOP not in events:
                     events.append(WAITED_OK)
                 else:
-                    events.append(WAITED_NOT_OK)
+                    # events.append(WAITED_NOT_OK)
+                    events.append(TOWARDS_NOTHING)
             else:
                 if d is not None:
                     if new_self_pos[0] == d[0] and new_self_pos[1] == d[1]:
@@ -311,7 +311,8 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
                                        reward_from_events(self, events)))
     self.last_state = new_game_state
 
-
+    if self.epsilon <= 0.2:
+        self.epsilon_decay == 1 / 1000000
     self.epsilon = max(self.epsilon - self.epsilon_decay, self.epsilon_min)
 
     # self.epsilon = self.epsilon_min + (self.epsilon_start - self.epsilon_min) * \
@@ -443,10 +444,10 @@ def reward_from_events(self, events: List[str]) -> int:
         e.MOVED_RIGHT: 1,
 
         ESCAPE_FROM_SELF_BOMB: 25,
-        NOT_ESCAPE_FROM_SELF_BOMB: -50,
+        NOT_ESCAPE_FROM_SELF_BOMB: -70,
 
         WAITED_OK: 5,
-        WAITED_NOT_OK: -40,
+        # WAITED_NOT_OK: -40,
 
         BOMB_OPPONENT: 25,
         BOMB_DEAD_END: 15,
@@ -454,11 +455,11 @@ def reward_from_events(self, events: List[str]) -> int:
 
         UNLESS_BOMB: -50,
 
-        TOWARDS_TARGET: 45,
-        TOWARDS_NOTHING: -70,
+        TOWARDS_TARGET: 35,
+        TOWARDS_NOTHING: -90,
 
         ESCAPE_FROM_BOMB: 45,
-        NOT_ESCAPE_FROM_BOMB: -65,
+        NOT_ESCAPE_FROM_BOMB: -90,
 
         STUCK_IN_LOOP: -15,
     }
@@ -588,7 +589,6 @@ def evaluate_round(self, events: List[str], round_final):
     self.points = self.points + events.count(e.COIN_COLLECTED) + events.count(e.KILLED_OPPONENT) * 5
 
     if round_final:
-        # Append results to each specific list.
         self.one_game['crates'].append(self.crates)
         self.one_game['opponents'].append(self.opponents)
         self.one_game['coins'].append(self.coins)
@@ -612,33 +612,33 @@ def evaluate_round(self, events: List[str], round_final):
             points_list = self.one_game['points']
             number_list = range(len(rewards_list))
 
-            fig, axs = plt.subplots(6, figsize=(12, 8), sharex=False)
+            figure, axis = plt.subplots(6, figsize=(12, 8), sharex=False)
 
-            axs[0].plot(number_list, rewards_list, color='red')
-            axs[0].set_title('Total rewards one round')
-            axs[0].set_ylabel('Rewards')
+            axis[0].plot(number_list, rewards_list, color='red')
+            axis[0].set_title('Total rewards one round')
+            axis[0].set_ylabel('Rewards')
 
-            axs[1].plot(number_list, coins_list, color='red')
-            axs[1].set_title('Collected coins one round')
-            axs[1].set_ylabel('Coins')
+            axis[1].plot(number_list, coins_list, color='red')
+            axis[1].set_title('Collected coins one round')
+            axis[1].set_ylabel('Coins')
 
-            axs[2].plot(number_list, crates_list, color='red')
-            axs[2].set_title('Destroyed crates one round')
-            axs[2].set_ylabel('Crates')
+            axis[2].plot(number_list, crates_list, color='red')
+            axis[2].set_title('Destroyed crates one round')
+            axis[2].set_ylabel('Crates')
 
-            axs[3].plot(number_list, opponents_list, color='red')
-            axs[3].set_title('Killed opponents one round')
-            axs[3].set_ylabel('Killed Opponents')
+            axis[3].plot(number_list, opponents_list, color='red')
+            axis[3].set_title('Killed opponents one round')
+            axis[3].set_ylabel('Killed Opponents')
 
-            axs[4].plot(number_list, epsilon_list, color='red')
-            axs[4].set_title('Epsilon one round')
-            axs[4].set_ylabel('Epsilon')
+            axis[4].plot(number_list, epsilon_list, color='red')
+            axis[4].set_title('Epsilon one round')
+            axis[4].set_ylabel('Epsilon')
 
-            axs[5].plot(number_list, points_list, color='red')
-            axs[5].set_title('Points one round')
-            axs[5].set_ylabel('Points')
+            axis[5].plot(number_list, points_list, color='red')
+            axis[5].set_title('Points one round')
+            axis[5].set_ylabel('Points')
 
-            fig.tight_layout()
+            figure.tight_layout()
             name = f'game_evaluation.pdf'
             plt.savefig(name)
             plt.close('all')

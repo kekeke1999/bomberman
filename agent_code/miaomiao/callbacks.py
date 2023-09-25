@@ -33,9 +33,9 @@ def setup(self):
     """
     np.random.seed()
 
-    self.epsilon_start = 0.9  # epsilon的初始值
+    self.epsilon_start = 0.95  # epsilon的初始值
     self.epsilon_min = 0.02  # epsilon的最小值
-    self.epsilon_decay = 1 / 800000  # epsilon的衰减速率
+    self.epsilon_decay = 1 / 400000  # epsilon的衰减速率
     self.epsilon = self.epsilon_start  # 初始化epsilon为初始值
     self.round = 0
     self.current_round = 0
@@ -65,16 +65,12 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
+    print("epsilon:", self.epsilon)
     if game_state["round"] != self.current_round:
         reset_self(self)
         self.current_round = game_state["round"]
 
     _, _, bombs_left, (x, y) = game_state['self']
-
-    # if self.coordinate_history.count((x, y)) > 2:
-    #     self.ignore_others_timer = 5
-    # else:
-    #     self.ignore_others_timer -= 1
 
     self.coordinate_history.append((x, y))
 
@@ -93,22 +89,18 @@ def act(self, game_state: dict) -> str:
                 q_values = self.q_network(torch.tensor(features, dtype=torch.float32))
                 ac = ACTIONS[torch.argmax(q_values)]
                 if ac == 'BOMB': self.bomb_history.append((x, y))
+
                 return ac
         else:
             print("****************Choosing action purely at random.****************")
             self.logger.info("Choosing action purely at random.")
-            acts = get_valid_action(game_state)
-            ac = np.random.choice(acts)
+            # acts = get_valid_action(game_state)
+            # ac = np.random.choice(acts)
+            ac = np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
 
             if ac == 'BOMB': self.bomb_history.append((x, y))
             return ac
     else:
-        features = state_to_features(game_state, self.coordinate_history, self.bomb_history)
-        q_values = self.q_network(torch.tensor(features, dtype=torch.float32))
-        ac = ACTIONS[torch.argmax(q_values)]
-        if ac == 'BOMB': self.bomb_history.append((x, y))
-        return ACTIONS[torch.argmax(q_values)]
-
         self.logger.info("Action no random.")
         features = state_to_features(game_state, self.coordinate_history, self.bomb_history)
         q_values = self.q_network(torch.tensor(features, dtype=torch.float32))

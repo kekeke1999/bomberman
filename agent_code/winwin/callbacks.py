@@ -33,9 +33,9 @@ def setup(self):
     """
     np.random.seed()
 
-    self.epsilon_start = 0.95  # epsilon的初始值
+    self.epsilon_start = 0.4  # epsilon的初始值
     self.epsilon_min = 0.02  # epsilon的最小值
-    self.epsilon_decay = 1 / 400000  # epsilon的衰减速率
+    self.epsilon_decay = 1 / 1000000  # epsilon的衰减速率
     self.epsilon = self.epsilon_start  # 初始化epsilon为初始值
     self.round = 0
     self.current_round = 0

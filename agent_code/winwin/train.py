@@ -238,9 +238,9 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
             events.append(NOT_ESCAPE_FROM_SELF_BOMB)
     else:
         # Add other agents as targets if in hunting mode or no crates/coins left
-        if len(old_coins) <= 2:
+        # if len(old_coins) <= 2:
             # if self.ignore_others_timer <= 0 or len(old_crates) + len(old_coins) == 0:
-            old_targets.extend(old_others)
+        old_targets.extend(old_others)
 
         # Exclude targets that are currently occupied by a bomb
         old_targets = [old_targets[i] for i in range(len(old_targets)) if old_targets[i] not in old_bomb_xys]
@@ -294,7 +294,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
 
     self.logger.debug(f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}')
 
-    print("all events:", events)
+    # print("all events:", events)
 
     # Create an experience and add it to the replay buffer
     experience = Experience(state_to_features(old_game_state, sc, sbh), torch.tensor([[ACTIONS.index(self_action)]]),
@@ -361,7 +361,7 @@ def game_events_occurred(self, old_game_state: dict, self_action: str, new_game_
                         1 - self.tau)
         self.target_network.load_state_dict(target_net_state_dict)
 
-    evaluate_round(self, events, False)
+    # evaluate_round(self, events, False)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -384,7 +384,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(f'Encountered event(s) {", ".join(map(repr, events))} in final step')
 
     # Evaluate the game
-    evaluate_round(self, events, True)
+    # evaluate_round(self, events, True)
 
     experience = Experience(state_to_features(last_game_state, self.coordinate_history, self.bomb_history), torch.tensor([[ACTIONS.index(last_action)]]),
                             [1] * 20,
@@ -467,7 +467,7 @@ def reward_from_events(self, events: List[str]) -> int:
     for event in events:
         if event in game_rewards:
             reward_sum += game_rewards[event]
-    print("reward_sum:", reward_sum)
+    # print("reward_sum:", reward_sum)
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum
 
@@ -574,71 +574,3 @@ def find_closest_target(free_space, start, targets, logger=None):
     while True:
         if parent_dict[current] == start: return current
         current = parent_dict[current]
-
-
-def evaluate_round(self, events: List[str], round_final):
-
-    if e.CRATE_DESTROYED in events:
-        self.crates = events.count(e.CRATE_DESTROYED) + self.crates
-    if e.KILLED_OPPONENT in events:
-        self.opponents = events.count(e.KILLED_OPPONENT) + self.opponents
-    if e.COIN_COLLECTED in events:
-        self.coins = events.count(e.COIN_COLLECTED) + 1
-
-    self.rewards += reward_from_events(self, events)
-    self.points = self.points + events.count(e.COIN_COLLECTED) + events.count(e.KILLED_OPPONENT) * 5
-
-    if round_final:
-        self.one_game['crates'].append(self.crates)
-        self.one_game['opponents'].append(self.opponents)
-        self.one_game['coins'].append(self.coins)
-        self.one_game['rewards'].append(self.rewards)
-        self.one_game['epsilon'].append(self.epsilon)
-        self.one_game['number'].append(self.games)
-        self.one_game['points'].append(self.points)
-
-        self.rewards = 0
-        self.coins = 0
-        self.crates = 0
-        self.opponents = 0
-        self.points = 0
-
-        if self.games % 500 == 8:
-            rewards_list = self.one_game['rewards']
-            coins_list = self.one_game['coins']
-            crates_list = self.one_game['crates']
-            opponents_list = self.one_game['opponents']
-            epsilon_list = self.one_game['epsilon']
-            points_list = self.one_game['points']
-            number_list = range(len(rewards_list))
-
-            figure, axis = plt.subplots(6, figsize=(12, 8), sharex=False)
-
-            axis[0].plot(number_list, rewards_list, color='red')
-            axis[0].set_title('Total rewards one round')
-            axis[0].set_ylabel('Rewards')
-
-            axis[1].plot(number_list, coins_list, color='red')
-            axis[1].set_title('Collected coins one round')
-            axis[1].set_ylabel('Coins')
-
-            axis[2].plot(number_list, crates_list, color='red')
-            axis[2].set_title('Destroyed crates one round')
-            axis[2].set_ylabel('Crates')
-
-            axis[3].plot(number_list, opponents_list, color='red')
-            axis[3].set_title('Killed opponents one round')
-            axis[3].set_ylabel('Killed Opponents')
-
-            axis[4].plot(number_list, epsilon_list, color='red')
-            axis[4].set_title('Epsilon one round')
-            axis[4].set_ylabel('Epsilon')
-
-            axis[5].plot(number_list, points_list, color='red')
-            axis[5].set_title('Points one round')
-            axis[5].set_ylabel('Points')
-
-            figure.tight_layout()
-            name = f'game_evaluation.pdf'
-            plt.savefig(name)
-            plt.close('all')
